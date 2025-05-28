@@ -451,6 +451,6 @@ if __name__ == "__main__":
     # Get port from environment variable for hosting platforms
     port = int(os.getenv("PORT", 8000))
     
-    # Run the server in HTTP mode for web hosting
+    # Run the server in streamable HTTP mode for web hosting
     print(f"🚀 Starting Fusion 360 Docs MCP Server on port {port}")
-    mcp.run(transport='sse', host="0.0.0.0", port=port) 
+    mcp.run(transport="streamable-http", port=port) 
