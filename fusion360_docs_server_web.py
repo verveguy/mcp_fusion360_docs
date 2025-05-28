@@ -448,9 +448,18 @@ async def health_check() -> str:
     return "🟢 Fusion 360 API Documentation MCP Server is running!"
 
 if __name__ == "__main__":
-    # Get port from environment variable for hosting platforms
-    port = int(os.getenv("PORT", 8000))
+    # For web hosting platforms like Railway, we need to create an ASGI app
+    # that listens on the PORT environment variable
+    import uvicorn
     
-    # Run the server in streamable HTTP mode for web hosting
-    print(f"🚀 Starting Fusion 360 Docs MCP Server on port {port}")
-    mcp.run(transport="streamable-http", port=port) 
+    # Get port from environment variable for hosting platforms  
+    port = int(os.getenv("PORT", 8000))
+    host = os.getenv("HOST", "0.0.0.0")
+    
+    print(f"🚀 Starting Fusion 360 Docs MCP Server on {host}:{port}")
+    
+    # Create the streamable HTTP app
+    app = mcp.streamable_http_app()
+    
+    # Run with uvicorn
+    uvicorn.run(app, host=host, port=port) 
