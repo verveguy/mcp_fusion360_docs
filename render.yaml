@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: fusion360-docs-mcp
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python fusion360_docs_server_web.py"
+    envVars:
+      - key: PORT
+        value: 10000 
