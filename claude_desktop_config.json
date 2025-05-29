@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    
+    "fusion360-docs": {
+      "command": "/bin/bash",
+      "args": [
+        "-c",
+        "source ~/.nvm/nvm.sh && nvm use 18.20.7 && npx -y mcp-remote https://mcpfusion36docs-production.up.railway.app/mcp --allow-http"
+      ]
+    }
+  }
+}
