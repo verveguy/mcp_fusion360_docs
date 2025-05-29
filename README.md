@@ -91,6 +91,12 @@ You can change the port using
 PORT=8080 uv run fusion360_docs_server_web.py
 ```
 
+By default, the web server only binds to localhost. To server to all network adapters:
+
+```bash
+HOST=0.0.0.0 uv run fusion360_docs_server_web.py
+```
+
 ### Configure Cursor (or other tooling)
 To configure Cursor yourself to use your local endpoint, the following Cursor MCP config suffices. You can find this under Cursor > Settings > MCP
 
