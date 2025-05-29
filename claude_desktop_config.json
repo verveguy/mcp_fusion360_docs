@@ -1,6 +1,5 @@
 {
   "mcpServers": {
-    "filesystem": { ... },
     "fusion360-docs": {
       "command": "/bin/bash",
       "args": [
