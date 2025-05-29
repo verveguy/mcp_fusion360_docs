@@ -73,15 +73,22 @@ To configure Cursor yourself to use the public endpoint, the following Cursor MC
 
 ### Running the Server
 
-To run the MCP server directly:
+To run the MCP server directly (in stdio mode, i.e., for Claud):
 
 ```bash
 uv run fusion360_docs_server.py
 ```
+
+To run a local web server hosting the MCP, on port 8000 (for Cursor):
+
+```bash
+uv run fusion360_docs_server_web.py
+```
+
 You can change the port using 
 
 ```bash
-PORT=8080 uv run fusion360_docs_server.py
+PORT=8080 uv run fusion360_docs_server_web.py
 ```
 
 ### Configure Cursor (or other tooling)
