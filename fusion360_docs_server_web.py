@@ -463,16 +463,22 @@ if __name__ == "__main__":
     # Create the streamable HTTP app for MCP - this will be mounted at root
     app = mcp.streamable_http_app()
     
-    # Health check endpoint for Railway (separate from MCP)
+    # Health check endpoint for Railway (at both / and /health)
     async def health_check_endpoint(request):
         return JSONResponse({
             "status": "healthy",
             "service": "Fusion 360 API Documentation MCP Server",
-            "version": "1.0.0"
+            "version": "1.0.1"
         })
     
-    # Add only the health check route at /health (leave root / for MCP)
-    app.routes.append(Route("/health", health_check_endpoint))
+    # Add health check routes at both root and /health for Railway compatibility
+    app.routes.insert(0, Route("/", health_check_endpoint, methods=["GET"]))
+    app.routes.append(Route("/health", health_check_endpoint, methods=["GET"]))
+    
+    # Debug: Print all routes
+    print("📋 Available routes:")
+    for route in app.routes:
+        print(f"  - {route.path} ({getattr(route, 'methods', 'ALL')})")
     
     # Run with uvicorn
     uvicorn.run(app, host=host, port=port) 
