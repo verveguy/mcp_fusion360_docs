@@ -451,6 +451,9 @@ if __name__ == "__main__":
     # For web hosting platforms like Railway, we need to create an ASGI app
     # that listens on the PORT environment variable
     import uvicorn
+    from starlette.applications import Starlette
+    from starlette.responses import JSONResponse
+    from starlette.routing import Route, Mount
     
     # Get port from environment variable for hosting platforms  
     port = int(os.getenv("PORT", 8000))
@@ -458,8 +461,23 @@ if __name__ == "__main__":
     
     print(f"🚀 Starting Fusion 360 Docs MCP Server on {host}:{port}")
     
-    # Create the streamable HTTP app
-    app = mcp.streamable_http_app()
+    # Health check endpoint for Railway
+    async def health_check(request):
+        return JSONResponse({
+            "status": "healthy",
+            "service": "Fusion 360 API Documentation MCP Server",
+            "version": "1.0.0"
+        })
+    
+    # Create the streamable HTTP app for MCP
+    mcp_app = mcp.streamable_http_app()
+    
+    # Create a new Starlette app that includes both health check and MCP
+    app = Starlette(routes=[
+        Route("/", health_check),
+        Route("/health", health_check),
+        Mount("/mcp", mcp_app),
+    ])
     
     # Run with uvicorn
     uvicorn.run(app, host=host, port=port) 
