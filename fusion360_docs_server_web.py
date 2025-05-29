@@ -4,6 +4,9 @@ Fusion 360 API Documentation MCP Server - Web Version
 
 This server provides tools to query and search the Autodesk Fusion 360 API documentation.
 Web-compatible version for hosting on platforms like Railway, Render, etc.
+
+It fetches documentation from the official toctree.json and parses HTML content to extract
+class information, methods, properties, and usage examples.
 """
 
 import asyncio

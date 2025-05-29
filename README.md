@@ -1,6 +1,27 @@
+# About this project
+
+This project is a Model Context Protocol (MCP) server that provides access to the Autodesk Fusion 360 API documentation. This server allows LLMs to query, search, and analyze the complete Fusion 360 API documentation directly. The MCP server is really just a simple tool wrapper around the [Fusion 360 API doc website](https://help.autodesk.com/view/fusion360/ENU/).
+
+This app is a demonstration of using an MCP server to provide LLMs with access to current API documentation as an aid to developers building Autodesk product integrations. You see an example of such an app built by Cursor using this MCP server [here](https://git.autodesk.com/adamb1/fusion360_cylinder_app).
+
+This MCP server itself was generated entirely by Cursor in about 30 minutes flat by someone that had never built an MCP server before.
+
+You can run this endpoint locally. See instructions below. The endpoint is also deployable to Railway - a hosted Python environment. 
+
+To configure Cursor yourself to use the public endpoint, the following Cursor MCP config suffices. You can find this under Cursor > Settings > MCP
+
+```json
+{
+  "mcpServers": {
+    "fusion360": {
+      "url": "https://mcpfusion36docs-production.up.railway.app/mcp/"
+    }
+  }
+}
+```
+
 # Fusion 360 API Documentation MCP Server
 
-A Model Context Protocol (MCP) server that provides access to the Autodesk Fusion 360 API documentation. This server allows LLMs to query, search, and analyze the complete Fusion 360 API documentation directly.
 
 ## Features
 
@@ -57,31 +78,26 @@ To run the MCP server directly:
 ```bash
 uv run fusion360_docs_server.py
 ```
+You can change the port using 
 
-### Claude Desktop Integration
+```bash
+PORT=8080 uv run fusion360_docs_server.py
+```
 
-To use with Claude Desktop, add the server to your Claude Desktop configuration:
-
-**macOS/Linux**: Edit `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: Edit `%APPDATA%\Claude\claude_desktop_config.json`
+### Configure Cursor (or other tooling)
+To configure Cursor yourself to use your local endpoint, the following Cursor MCP config suffices. You can find this under Cursor > Settings > MCP
 
 ```json
 {
-    "mcpServers": {
-        "fusion360-docs": {
-            "command": "uv",
-            "args": [
-                "--directory", 
-                "/ABSOLUTE/PATH/TO/fusion360-docs-mcp",
-                "run", 
-                "fusion360_docs_server.py"
-            ]
-        }
+  "mcpServers": {
+    "fusion360": {
+      "url": "http://localhost:8000/mcp/"
     }
+  }
 }
 ```
 
-Replace `/ABSOLUTE/PATH/TO/fusion360-docs-mcp` with the actual path to your project directory.
+(Claude Desktop configuration is a pain)
 
 ## Available Tools
 
