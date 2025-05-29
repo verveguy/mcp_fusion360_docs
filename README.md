@@ -91,7 +91,7 @@ You can change the port using
 PORT=8080 uv run fusion360_docs_server_web.py
 ```
 
-By default, the web server only binds to localhost. To server to all network adapters:
+By default, the web server only binds to localhost. To serve on all network adapters:
 
 ```bash
 HOST=0.0.0.0 uv run fusion360_docs_server_web.py
