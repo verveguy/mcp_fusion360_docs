@@ -1,0 +1,383 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { 
+  JSONRPCRequest,
+  ErrorCode,
+  Tool,
+} from '@modelcontextprotocol/sdk/types.js';
+
+import { Fusion360Service } from '@/lib/fusion360-service';
+
+/** Global service instance for handling documentation requests */
+const fusion360Service = new Fusion360Service();
+
+/**
+ * JSON-RPC error response structure for MCP protocol compliance.
+ * Used when requests fail or contain invalid parameters.
+ */
+interface JSONRPCErrorResponse {
+  jsonrpc: '2.0';
+  id: string | number | null;
+  error: {
+    code: ErrorCode;
+    message: string;
+  };
+}
+
+/**
+ * JSON-RPC success response structure for MCP protocol compliance.
+ * Used for successful tool executions and other valid responses.
+ */
+interface JSONRPCSuccessResponse {
+  jsonrpc: '2.0';
+  id: string | number | null;
+  result: unknown;
+}
+
+/** Union type for all possible JSON-RPC response formats */
+type JSONRPCResponse = JSONRPCErrorResponse | JSONRPCSuccessResponse;
+
+/**
+ * Available MCP tools for the Fusion 360 API documentation server.
+ * Each tool provides specific functionality for querying and analyzing
+ * the Fusion 360 API documentation.
+ */
+const TOOLS: Tool[] = [
+  {
+    name: 'mcp_fusion360_get_toctree_info',
+    description: 'Get information about the Fusion 360 API documentation structure.\n\nReturns overview of available documentation sections and API-related content.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        random_string: {
+          type: 'string',
+          description: 'Dummy parameter for no-parameter tools'
+        }
+      },
+      required: ['random_string']
+    }
+  },
+  {
+    name: 'mcp_fusion360_search_api_documentation',
+    description: 'Search the Fusion 360 API documentation for specific topics.\n\nArgs:\n    query: Search query (class name, method name, or topic)\n    max_results: Maximum number of results to return (default: 5)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'The search query to find relevant API documentation'
+        },
+        max_results: {
+          type: 'integer',
+          description: 'Maximum number of results to return',
+          default: 5
+        }
+      },
+      required: ['query']
+    }
+  },
+  {
+    name: 'mcp_fusion360_get_api_class_info',
+    description: 'Get detailed information about a specific API class.\n\nArgs:\n    class_name: Name of the class to look up (e.g., "ExtrudeFeature", "Sketch")',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        class_name: {
+          type: 'string',
+          description: 'Name of the class to analyze'
+        }
+      },
+      required: ['class_name']
+    }
+  },
+  {
+    name: 'mcp_fusion360_analyze_arrange3d_definition',
+    description: 'Specifically analyze the Arrange3DDefinition object in the Fusion 360 API.\n\nThis tool searches for and analyzes documentation related to the Arrange3DDefinition\nobject, its API, and functional role in the Fusion API.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        random_string: {
+          type: 'string',
+          description: 'Dummy parameter for no-parameter tools'
+        }
+      },
+      required: ['random_string']
+    }
+  },
+  {
+    name: 'mcp_fusion360_health_check',
+    description: 'Health check endpoint for monitoring the service.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        random_string: {
+          type: 'string',
+          description: 'Dummy parameter for no-parameter tools'
+        }
+      },
+      required: ['random_string']
+    }
+  }
+];
+
+/**
+ * Creates a standardized JSON-RPC error response.
+ * 
+ * @param id - Request ID from the original JSON-RPC request
+ * @param code - MCP error code indicating the type of error
+ * @param message - Human-readable error description
+ * @returns Formatted JSON-RPC error response
+ */
+function createErrorResponse(id: string | number | null, code: ErrorCode, message: string): JSONRPCErrorResponse {
+  return {
+    jsonrpc: '2.0',
+    id,
+    error: {
+      code,
+      message,
+    },
+  };
+}
+
+/**
+ * Creates a standardized JSON-RPC success response.
+ * 
+ * @param id - Request ID from the original JSON-RPC request
+ * @param result - The successful result data to return
+ * @returns Formatted JSON-RPC success response
+ */
+function createSuccessResponse(id: string | number | null, result: unknown): JSONRPCSuccessResponse {
+  return {
+    jsonrpc: '2.0',
+    id,
+    result,
+  };
+}
+
+/**
+ * Adds CORS headers to a NextJS response to enable cross-origin requests.
+ * Required for web-based MCP clients like the MCP Inspector.
+ * 
+ * @param response - NextJS response object to modify
+ * @returns The same response object with CORS headers added
+ */
+function addCorsHeaders(response: NextResponse) {
+  response.headers.set('Access-Control-Allow-Origin', '*');
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  return response;
+}
+
+/**
+ * Processes a single MCP JSON-RPC request and routes it to the appropriate handler.
+ * 
+ * This function implements the core MCP protocol handling, including:
+ * - Server initialization
+ * - Tool listing
+ * - Tool execution with parameter validation
+ * - Error handling and logging
+ * 
+ * @param request - The JSON-RPC request object to process
+ * @returns Promise resolving to a JSON-RPC response
+ */
+async function handleMcpRequest(request: JSONRPCRequest): Promise<JSONRPCResponse> {
+  const { method, params, id } = request;
+  
+  console.log('MCP Request:', { method, id, params: params ? Object.keys(params) : 'none' });
+
+  try {
+    switch (method) {
+      case 'initialize': {
+        console.log('Handling initialize request with params:', params);
+        const result = {
+          protocolVersion: '2024-11-05',
+          capabilities: {
+            tools: {},
+          },
+          serverInfo: {
+            name: 'fusion360-docs',
+            version: '0.1.0',
+          },
+        };
+        console.log('Initialize response:', result);
+        return createSuccessResponse(id, result);
+      }
+
+      case 'tools/list': {
+        console.log('Handling tools/list request');
+        return createSuccessResponse(id, {
+          tools: TOOLS,
+        });
+      }
+
+      case 'tools/call': {
+        if (!params || !('name' in params)) {
+          return createErrorResponse(id, ErrorCode.InvalidParams, 'Missing tool name');
+        }
+
+        const { name, arguments: args } = params as { name: string; arguments?: Record<string, unknown> };
+        console.log('Handling tool call:', name);
+
+        switch (name) {
+          case 'mcp_fusion360_get_toctree_info': {
+            const result = await fusion360Service.getTocTreeInfo();
+            return createSuccessResponse(id, {
+              content: [
+                {
+                  type: 'text',
+                  text: result,
+                },
+              ],
+            });
+          }
+
+          case 'mcp_fusion360_search_api_documentation': {
+            if (!args || typeof args !== 'object' || !('query' in args)) {
+              return createErrorResponse(id, ErrorCode.InvalidParams, 'Missing required parameter: query');
+            }
+            
+            const query = args.query as string;
+            const maxResults = (args.max_results as number) || 5;
+            
+            const result = await fusion360Service.searchApiDocumentation(query, maxResults);
+            return createSuccessResponse(id, {
+              content: [
+                {
+                  type: 'text',
+                  text: result,
+                },
+              ],
+            });
+          }
+
+          case 'mcp_fusion360_get_api_class_info': {
+            if (!args || typeof args !== 'object' || !('class_name' in args)) {
+              return createErrorResponse(id, ErrorCode.InvalidParams, 'Missing required parameter: class_name');
+            }
+            
+            const className = args.class_name as string;
+            const result = await fusion360Service.getApiClassInfo(className);
+            return createSuccessResponse(id, {
+              content: [
+                {
+                  type: 'text',
+                  text: result,
+                },
+              ],
+            });
+          }
+
+          case 'mcp_fusion360_analyze_arrange3d_definition': {
+            const result = await fusion360Service.analyzeArrange3dDefinition();
+            return createSuccessResponse(id, {
+              content: [
+                {
+                  type: 'text',
+                  text: result,
+                },
+              ],
+            });
+          }
+
+          case 'mcp_fusion360_health_check': {
+            const result = await fusion360Service.healthCheck();
+            return createSuccessResponse(id, {
+              content: [
+                {
+                  type: 'text',
+                  text: result,
+                },
+              ],
+            });
+          }
+
+          default:
+            return createErrorResponse(id, ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+        }
+      }
+
+      default:
+        console.log('Unknown method:', method);
+        return createErrorResponse(id, ErrorCode.MethodNotFound, `Unknown method: ${method}`);
+    }
+  } catch (error) {
+    console.error('Error handling MCP request:', error);
+    return createErrorResponse(
+      id,
+      ErrorCode.InternalError,
+      `Request failed: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+/**
+ * Handles CORS preflight OPTIONS requests.
+ * Required for web browsers to allow cross-origin POST requests.
+ * 
+ * @returns NextJS response with appropriate CORS headers
+ */
+export async function OPTIONS() {
+  const response = new NextResponse(null, { status: 200 });
+  return addCorsHeaders(response);
+}
+
+/**
+ * Handles POST requests containing MCP JSON-RPC messages.
+ * 
+ * This endpoint serves as the HTTP transport for the MCP protocol,
+ * allowing web-based clients like Cursor and MCP Inspector to
+ * communicate with the Fusion 360 documentation server.
+ * 
+ * Supports both single requests and batch request arrays as per
+ * the JSON-RPC specification.
+ * 
+ * @param request - NextJS request object containing the JSON-RPC payload
+ * @returns NextJS response with the MCP result or error
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    console.log('Received POST request body:', JSON.stringify(body, null, 2));
+    
+    // Handle both single requests and batch requests
+    if (Array.isArray(body)) {
+      const responses = await Promise.all(
+        body.map((req: JSONRPCRequest) => handleMcpRequest(req))
+      );
+      const response = NextResponse.json(responses);
+      return addCorsHeaders(response);
+    } else {
+      const mcpResponse = await handleMcpRequest(body as JSONRPCRequest);
+      console.log('Sending response:', JSON.stringify(mcpResponse, null, 2));
+      const response = NextResponse.json(mcpResponse);
+      return addCorsHeaders(response);
+    }
+  } catch (error) {
+    console.error('Error processing MCP request:', error);
+    const errorResponse = NextResponse.json(
+      createErrorResponse(null, ErrorCode.ParseError, 'Invalid JSON-RPC request'),
+      { status: 400 }
+    );
+    return addCorsHeaders(errorResponse);
+  }
+}
+
+/**
+ * Handles GET requests to provide server information and capabilities.
+ * 
+ * This endpoint allows clients to discover the server's capabilities
+ * and basic information without initiating a full MCP session.
+ * Useful for health checks and service discovery.
+ * 
+ * @returns NextJS response with server metadata
+ */
+export async function GET() {
+  const response = NextResponse.json({
+    name: 'fusion360-docs',
+    version: '0.1.0',
+    description: 'Fusion 360 API Documentation MCP Server',
+    capabilities: {
+      tools: TOOLS.length,
+    },
+  });
+  return addCorsHeaders(response);
+}
