@@ -1,11 +1,13 @@
 {
   "mcpServers": {
     "fusion360-docs": {
-      "command": "/bin/bash",
+      "command": "npx",
       "args": [
-        "-c", 
-        "source ~/.nvm/nvm.sh >/dev/null 2>&1 && nvm use 18.20.7 >/dev/null 2>&1 && npx -y mcp-remote https://mcpfusion36docs-production.up.railway.app/mcp/"
+        "-y", 
+        "supergateway",
+        "--streamableHttp",
+        "https://mcpfusion36docs-production.up.railway.app/mcp/"
       ]
-    }
+    },
   }
 }
