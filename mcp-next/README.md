@@ -30,7 +30,7 @@ If you need to allow additional origins (NOT recommended for production):
 function getAllowedOrigin(): string {
   // Only add external origins if absolutely necessary and trusted
   const trustedOrigins = [
-    'http://localhost:3000',
+    'http://127.0.0.1:3000',
     'https://yourtrusted.domain.com' // Add only if necessary
   ];
   return trustedOrigins[0]; // Implement proper origin checking logic
@@ -132,7 +132,7 @@ Health check endpoint for monitoring service status.
 
 ## 🔧 Usage
 
-### As MCP Server (Claude Desktop)
+### As MCP Server via stdio (Claude Desktop)
 
 ⚠️ **Note**: Claude Desktop uses stdio communication, so CORS restrictions don't apply to this mode.
 
@@ -141,7 +141,7 @@ Health check endpoint for monitoring service status.
 ```json
 {
   "mcpServers": {
-    "fusion360-docs": {
+    "fusion360docs": {
       "command": "node",
       "args": ["path/to/mcp_fusion_360_api/dist/bin/fusion360-docs-server.js"]
     }
@@ -164,10 +164,10 @@ Analyze the ExtrudeFeature class
 
 1. Start the NextJS server:
 ```bash
-npm run start
+pnpm run start
 ```
 
-2. Access the MCP endpoint at `http://localhost:3000/mcp`
+2. Access the MCP endpoint at `http://127.0.0.1:3000/mcp`
 
 3. Use with MCP Inspector or other HTTP-based MCP clients running on localhost
 
