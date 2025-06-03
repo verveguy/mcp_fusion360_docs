@@ -1,0 +1,75 @@
+{
+  "name": "@autodesk/fusion360-docs-mcp-server",
+  "version": "0.1.0",
+  "description": "TypeScript/NextJS MCP server providing access to Autodesk Fusion 360 API documentation with intelligent search, class analysis, and specialized component documentation",
+  "type": "module",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "fusion360",
+    "autodesk",
+    "api-documentation",
+    "typescript",
+    "nextjs"
+  ],
+  "author": "Brett Adam",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://git.autodesk.com/adamb1/mcp_fusion_360_api"
+  },
+  "bugs": {
+    "url": "https://git.autodesk.com/adamb1/mcp_fusion_360_api/issues"
+  },
+  "homepage": "https://git.autodesk.com/adamb1/mcp_fusion_360_api#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "main": "dist/lib/mcp-server.js",
+  "bin": {
+    "fusion360-docs-server": "dist/bin/fusion360-docs-server.js"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build && tsc --project tsconfig.json",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "tsx src/test/test-server.ts",
+    "test:stdio": "tsx src/bin/fusion360-docs-server.ts",
+    "test:watch": "tsx watch src/test/test-server.ts",
+    "clean": "rm -rf .next dist",
+    "typecheck": "tsc --noEmit",
+    "docs:generate": "typedoc --out docs src --readme README.md"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.9.1",
+    "axios": "^1.7.9",
+    "cheerio": "^1.0.0",
+    "next": "15.1.7",
+    "node-cache": "^5.1.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/cheerio": "^0.22.35",
+    "@types/node": "^22.10.6",
+    "@types/react": "^19.0.1",
+    "@types/react-dom": "^19.0.2",
+    "eslint": "^9.19.0",
+    "eslint-config-next": "15.1.7",
+    "tailwindcss": "^4",
+    "tsx": "^4.19.2",
+    "typedoc": "^0.27.0",
+    "typescript": "^5.7.3"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

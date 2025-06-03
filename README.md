@@ -104,7 +104,7 @@ To configure Cursor yourself to use your local endpoint, the following Cursor MC
 {
   "mcpServers": {
     "fusion360": {
-      "url": "http://localhost:8000/mcp/"
+      "url": "http://127.0.0.1:8000/mcp/"
     }
   }
 }
