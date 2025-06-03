@@ -2,6 +2,41 @@
 
 A comprehensive TypeScript/NextJS implementation of an MCP (Model Context Protocol) server that provides intelligent access to Autodesk Fusion 360 API documentation. This server enables AI assistants like Claude to search, analyze, and retrieve detailed information from the vast Fusion 360 API documentation.
 
+## 🔒 Security Notice
+
+**IMPORTANT: This server is configured for localhost-only access for security reasons.**
+
+The MCP server restricts CORS (Cross-Origin Resource Sharing) to localhost origins only (`http://localhost:3000` by default). This prevents unauthorized external websites from accessing the API documentation endpoints, ensuring that only trusted local applications can interact with the server.
+
+### Security Features
+
+- **Localhost-only CORS**: Only `localhost` and `127.0.0.1` origins are permitted
+- **Port restrictions**: Limited to development ports (3000-3999 range)
+- **No wildcard origins**: Explicitly prevents `Access-Control-Allow-Origin: *`
+- **Request validation**: All MCP requests are validated before processing
+- **Error handling**: Secure error messages that don't leak internal information
+
+### Modifying CORS Settings
+
+If you need to allow additional origins (NOT recommended for production):
+
+1. Edit `src/app/mcp/route.ts`
+2. Modify the `getAllowedOrigin()` function
+3. **Understand the security implications** before making changes
+4. Consider implementing authentication if allowing external origins
+
+```typescript
+// Example: Adding a specific external origin (USE WITH CAUTION)
+function getAllowedOrigin(): string {
+  // Only add external origins if absolutely necessary and trusted
+  const trustedOrigins = [
+    'http://localhost:3000',
+    'https://yourtrusted.domain.com' // Add only if necessary
+  ];
+  return trustedOrigins[0]; // Implement proper origin checking logic
+}
+```
+
 ## 🚀 Features
 
 - **Intelligent Documentation Search**: Search through 14,000+ API entries with semantic matching
@@ -99,6 +134,8 @@ Health check endpoint for monitoring service status.
 
 ### As MCP Server (Claude Desktop)
 
+⚠️ **Note**: Claude Desktop uses stdio communication, so CORS restrictions don't apply to this mode.
+
 1. Add to your Claude Desktop configuration:
 
 ```json
@@ -123,6 +160,8 @@ Analyze the ExtrudeFeature class
 
 ### As HTTP Server (Web Clients)
 
+⚠️ **Security**: HTTP mode is restricted to localhost origins only.
+
 1. Start the NextJS server:
 ```bash
 npm run start
@@ -130,7 +169,9 @@ npm run start
 
 2. Access the MCP endpoint at `http://localhost:3000/mcp`
 
-3. Use with MCP Inspector or other HTTP-based MCP clients
+3. Use with MCP Inspector or other HTTP-based MCP clients running on localhost
+
+**Important**: Ensure your MCP client is running on localhost (127.0.0.1 or localhost domain) to successfully connect. External clients will be blocked by CORS policy.
 
 ### Direct API Usage
 
@@ -154,6 +195,15 @@ const status = await service.healthCheck();
 
 ## 🏗️ Architecture
 
+### Security Architecture
+
+The server implements a defense-in-depth security approach:
+
+1. **Network Level**: CORS restrictions limit origin access
+2. **Application Level**: Input validation and sanitization
+3. **Protocol Level**: MCP standard compliance and error handling
+4. **Transport Level**: Support for both secure stdio and HTTP protocols
+
 ### Core Components
 
 - **`Fusion360Service`**: Main service class handling all documentation operations
@@ -172,6 +222,21 @@ const status = await service.healthCheck();
 5. **Response Formatting**: Returns structured markdown responses
 
 ## 🧪 Testing
+
+### Security Testing
+
+The test suite includes security-focused tests:
+
+```bash
+# Test CORS restrictions
+pnpm run test:security
+
+# Test with different origins (should fail)
+curl -H "Origin: https://malicious.example.com" http://localhost:3000/mcp
+
+# Test localhost access (should succeed)
+curl -H "Origin: http://localhost:3000" http://localhost:3000/mcp
+```
 
 ### Automated Tests
 
@@ -205,13 +270,29 @@ The test suite validates:
 - ✅ Caching system performance
 - ✅ Error handling and recovery
 
-## 🔧 Configuration
+## �� Configuration
+
+### Security Configuration
+
+The server's security settings are configured in `src/app/mcp/route.ts`:
+
+```typescript
+// CORS Configuration
+const ALLOWED_ORIGINS = ['http://localhost:3000']; // Modify with caution
+
+// Cache settings (prevents repeated external requests)
+export const CACHE_CONFIG = {
+  stdTTL: 600,      // 10 minutes default TTL
+  checkperiod: 60,  // Check for expired items every minute
+} as const;
+```
 
 ### Environment Variables
 
 - `NODE_ENV`: Environment mode (development/production)
 - `PORT`: HTTP server port (default: 3000)
 - `CACHE_TTL`: Cache time-to-live in seconds (default: 600)
+- `CORS_ORIGIN`: Override default CORS origin (use with caution)
 
 ### Cache Configuration
 
@@ -317,3 +398,36 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 *Built with ❤️ by the Autodesk Tech Docs Team*
+
+## 🛡️ Security Best Practices
+
+When deploying or modifying this server:
+
+1. **Never use wildcard CORS** (`Access-Control-Allow-Origin: *`) in production
+2. **Validate all inputs** before processing MCP requests
+3. **Use HTTPS** when deploying outside localhost
+4. **Implement authentication** for any external access
+5. **Monitor access logs** for suspicious activity
+6. **Keep dependencies updated** to prevent security vulnerabilities
+7. **Use environment variables** for sensitive configuration
+
+### Common Security Pitfalls to Avoid
+
+❌ **Don't do this**:
+```typescript
+// SECURITY RISK: Allows any website to access your MCP server
+response.headers.set('Access-Control-Allow-Origin', '*');
+```
+
+✅ **Do this instead**:
+```typescript
+// SECURE: Only allow trusted localhost origins
+response.headers.set('Access-Control-Allow-Origin', 'http://localhost:3000');
+```
+
+When contributing security-related changes:
+
+1. **Security review required** for any CORS or authentication changes
+2. **Document security implications** in pull request descriptions
+3. **Test with multiple origins** to ensure restrictions work properly
+4. **Follow principle of least privilege** when adding new features

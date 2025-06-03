@@ -6,6 +6,15 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { Fusion360Service } from '@/lib/fusion360-service';
+import { addCorsHeaders, createCorsPreflightResponse } from '@/lib/cors-security';
+import { 
+  logMcpRequest, 
+  logToolExecution, 
+  logOperationSuccess, 
+  logOperationError,
+  logInfo,
+  logError 
+} from '@/lib/secure-logger';
 
 /** Global service instance for handling documentation requests */
 const fusion360Service = new Fusion360Service();
@@ -154,20 +163,6 @@ function createSuccessResponse(id: string | number | null, result: unknown): JSO
 }
 
 /**
- * Adds CORS headers to a NextJS response to enable cross-origin requests.
- * Required for web-based MCP clients like the MCP Inspector.
- * 
- * @param response - NextJS response object to modify
- * @returns The same response object with CORS headers added
- */
-function addCorsHeaders(response: NextResponse) {
-  response.headers.set('Access-Control-Allow-Origin', '*');
-  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  return response;
-}
-
-/**
  * Processes a single MCP JSON-RPC request and routes it to the appropriate handler.
  * 
  * This function implements the core MCP protocol handling, including:
@@ -176,18 +171,23 @@ function addCorsHeaders(response: NextResponse) {
  * - Tool execution with parameter validation
  * - Error handling and logging
  * 
+ * SECURITY NOTE: All logging is done through secure logger to prevent
+ * sensitive data leakage. Request bodies and full error objects are never logged.
+ * 
  * @param request - The JSON-RPC request object to process
  * @returns Promise resolving to a JSON-RPC response
  */
 async function handleMcpRequest(request: JSONRPCRequest): Promise<JSONRPCResponse> {
   const { method, params, id } = request;
   
-  console.log('MCP Request:', { method, id, params: params ? Object.keys(params) : 'none' });
+  // SECURITY: Log request info without exposing sensitive parameters
+  logMcpRequest(method, id, params !== undefined && params !== null);
 
   try {
     switch (method) {
       case 'initialize': {
-        console.log('Handling initialize request with params:', params);
+        // SECURITY: Don't log full params as they might contain sensitive client info
+        logInfo('Handling initialize request');
         const result = {
           protocolVersion: '2024-11-05',
           capabilities: {
@@ -198,12 +198,13 @@ async function handleMcpRequest(request: JSONRPCRequest): Promise<JSONRPCRespons
             version: '0.1.0',
           },
         };
-        console.log('Initialize response:', result);
+        logOperationSuccess('initialize');
         return createSuccessResponse(id, result);
       }
 
       case 'tools/list': {
-        console.log('Handling tools/list request');
+        logInfo('Handling tools/list request');
+        logOperationSuccess('tools/list', `${TOOLS.length} tools available`);
         return createSuccessResponse(id, {
           tools: TOOLS,
         });
@@ -211,15 +212,19 @@ async function handleMcpRequest(request: JSONRPCRequest): Promise<JSONRPCRespons
 
       case 'tools/call': {
         if (!params || !('name' in params)) {
+          logError('Tool call missing required name parameter');
           return createErrorResponse(id, ErrorCode.InvalidParams, 'Missing tool name');
         }
 
         const { name, arguments: args } = params as { name: string; arguments?: Record<string, unknown> };
-        console.log('Handling tool call:', name);
+        
+        // SECURITY: Log tool execution without exposing arguments (they might contain sensitive search terms)
+        logToolExecution(name);
 
         switch (name) {
           case 'mcp_fusion360_get_toctree_info': {
             const result = await fusion360Service.getTocTreeInfo();
+            logOperationSuccess('get_toctree_info', 'Documentation structure retrieved');
             return createSuccessResponse(id, {
               content: [
                 {
@@ -232,6 +237,7 @@ async function handleMcpRequest(request: JSONRPCRequest): Promise<JSONRPCRespons
 
           case 'mcp_fusion360_search_api_documentation': {
             if (!args || typeof args !== 'object' || !('query' in args)) {
+              logError('Search API documentation missing required query parameter');
               return createErrorResponse(id, ErrorCode.InvalidParams, 'Missing required parameter: query');
             }
             
@@ -239,6 +245,7 @@ async function handleMcpRequest(request: JSONRPCRequest): Promise<JSONRPCRespons
             const maxResults = (args.max_results as number) || 5;
             
             const result = await fusion360Service.searchApiDocumentation(query, maxResults);
+            logOperationSuccess('search_api_documentation', 'Search completed');
             return createSuccessResponse(id, {
               content: [
                 {
@@ -251,11 +258,13 @@ async function handleMcpRequest(request: JSONRPCRequest): Promise<JSONRPCRespons
 
           case 'mcp_fusion360_get_api_class_info': {
             if (!args || typeof args !== 'object' || !('class_name' in args)) {
+              logError('Get API class info missing required class_name parameter');
               return createErrorResponse(id, ErrorCode.InvalidParams, 'Missing required parameter: class_name');
             }
             
             const className = args.class_name as string;
             const result = await fusion360Service.getApiClassInfo(className);
+            logOperationSuccess('get_api_class_info', 'Class information retrieved');
             return createSuccessResponse(id, {
               content: [
                 {
@@ -268,6 +277,7 @@ async function handleMcpRequest(request: JSONRPCRequest): Promise<JSONRPCRespons
 
           case 'mcp_fusion360_analyze_arrange3d_definition': {
             const result = await fusion360Service.analyzeArrange3dDefinition();
+            logOperationSuccess('analyze_arrange3d_definition', 'Analysis completed');
             return createSuccessResponse(id, {
               content: [
                 {
@@ -280,6 +290,7 @@ async function handleMcpRequest(request: JSONRPCRequest): Promise<JSONRPCRespons
 
           case 'mcp_fusion360_health_check': {
             const result = await fusion360Service.healthCheck();
+            logOperationSuccess('health_check', 'Health check completed');
             return createSuccessResponse(id, {
               content: [
                 {
@@ -291,44 +302,57 @@ async function handleMcpRequest(request: JSONRPCRequest): Promise<JSONRPCRespons
           }
 
           default:
+            logError(`Unknown tool requested: ${name}`);
             return createErrorResponse(id, ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
         }
       }
 
       default:
-        console.log('Unknown method:', method);
+        logError(`Unknown MCP method: ${method}`);
         return createErrorResponse(id, ErrorCode.MethodNotFound, `Unknown method: ${method}`);
     }
   } catch (error) {
-    console.error('Error handling MCP request:', error);
+    // SECURITY: Log error without exposing stack trace or internal details
+    logOperationError('handleMcpRequest', error as Error);
     return createErrorResponse(
       id,
       ErrorCode.InternalError,
-      `Request failed: ${error instanceof Error ? error.message : String(error)}`
+      `Request failed: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
 }
 
 /**
  * Handles CORS preflight OPTIONS requests.
- * Required for web browsers to allow cross-origin POST requests.
+ * 
+ * SECURITY: This endpoint enforces localhost-only CORS policy.
+ * Only requests from localhost origins (http://localhost:3000) are permitted.
+ * This prevents unauthorized external websites from discovering or accessing
+ * the MCP server endpoints through browser-based attacks.
  * 
  * @returns NextJS response with appropriate CORS headers
  */
 export async function OPTIONS() {
-  const response = new NextResponse(null, { status: 200 });
-  return addCorsHeaders(response);
+  return createCorsPreflightResponse();
 }
 
 /**
  * Handles POST requests containing MCP JSON-RPC messages.
  * 
+ * SECURITY: This endpoint is protected by localhost-only CORS policy.
+ * External websites cannot make requests to this endpoint due to browser
+ * same-origin policy enforcement. Only localhost-based MCP clients
+ * (like MCP Inspector, Cursor, or other local tools) can access this endpoint.
+ * 
  * This endpoint serves as the HTTP transport for the MCP protocol,
- * allowing web-based clients like Cursor and MCP Inspector to
- * communicate with the Fusion 360 documentation server.
+ * allowing web-based clients to communicate with the Fusion 360 
+ * documentation server in a secure manner.
  * 
  * Supports both single requests and batch request arrays as per
  * the JSON-RPC specification.
+ * 
+ * SECURITY NOTE: Request bodies and responses are never logged in full
+ * to prevent sensitive data leakage. Only sanitized metadata is logged.
  * 
  * @param request - NextJS request object containing the JSON-RPC payload
  * @returns NextJS response with the MCP result or error
@@ -336,23 +360,34 @@ export async function OPTIONS() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    console.log('Received POST request body:', JSON.stringify(body, null, 2));
+    
+    // SECURITY: Never log full request body - could contain sensitive data
+    // Only log safe metadata about the request structure
+    const isBatch = Array.isArray(body);
+    const requestCount = isBatch ? body.length : 1;
+    logInfo('Received POST request', { 
+      type: isBatch ? 'batch' : 'single',
+      requestCount: requestCount 
+    });
     
     // Handle both single requests and batch requests
-    if (Array.isArray(body)) {
+    if (isBatch) {
       const responses = await Promise.all(
         body.map((req: JSONRPCRequest) => handleMcpRequest(req))
       );
       const response = NextResponse.json(responses);
+      logOperationSuccess('POST batch request', `${responses.length} requests processed`);
       return addCorsHeaders(response);
     } else {
       const mcpResponse = await handleMcpRequest(body as JSONRPCRequest);
-      console.log('Sending response:', JSON.stringify(mcpResponse, null, 2));
+      // SECURITY: Never log full response - could contain sensitive API documentation
+      logOperationSuccess('POST single request', 'Request processed');
       const response = NextResponse.json(mcpResponse);
       return addCorsHeaders(response);
     }
   } catch (error) {
-    console.error('Error processing MCP request:', error);
+    // SECURITY: Log error without exposing request details or stack trace
+    logOperationError('POST request processing', error as Error);
     const errorResponse = NextResponse.json(
       createErrorResponse(null, ErrorCode.ParseError, 'Invalid JSON-RPC request'),
       { status: 400 }
@@ -364,9 +399,14 @@ export async function POST(request: NextRequest) {
 /**
  * Handles GET requests to provide server information and capabilities.
  * 
+ * SECURITY: This endpoint is protected by localhost-only CORS policy.
+ * While this endpoint provides non-sensitive server metadata, access
+ * is still restricted to localhost origins to prevent information
+ * disclosure to unauthorized parties.
+ * 
  * This endpoint allows clients to discover the server's capabilities
  * and basic information without initiating a full MCP session.
- * Useful for health checks and service discovery.
+ * Useful for health checks and service discovery by trusted local clients.
  * 
  * @returns NextJS response with server metadata
  */

@@ -6,13 +6,14 @@ import {
 } from '@/types/fusion360';
 import { 
   TOCTREE_URL, 
-  CACHE_CONFIG 
+  CACHE_CONFIG
 } from './constants';
 import { 
   fetchWithRetry, 
   extractApiEntries, 
   parseApiDocumentation 
 } from './utils';
+import { logError, logOperationError } from './secure-logger';
 
 /**
  * Main service class for accessing and processing Fusion 360 API documentation.
@@ -95,9 +96,14 @@ export class Fusion360Service {
         this.cache.set('toctree', tocTreeData);
         return tocTreeData;
       } catch (error) {
-        console.error('Failed to parse toctree JSON:', error);
-        console.error('Content type:', typeof content);
-        console.error('Content preview:', JSON.stringify(content).substring(0, 200));
+        // SECURITY: Don't log full content or detailed error information
+        // that could expose internal API structure or sensitive data
+        logOperationError('Failed to parse toctree JSON', error as Error);
+        logError('Content parsing failed', { 
+          contentType: typeof content,
+          contentSize: typeof content === 'string' ? content.length : 0,
+          // Never log the actual content - could contain sensitive URLs or structure
+        });
       }
     }
 
