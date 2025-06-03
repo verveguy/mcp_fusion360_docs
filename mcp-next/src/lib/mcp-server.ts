@@ -28,6 +28,14 @@ const server = new Server(
 );
 
 /** Service instance for accessing Fusion 360 documentation */
+
+/* Issue: Fusion360Service is instantiated as a global singleton in both the HTTP and stdio server contexts.
+
+Risk: If the service ever needs to be stateless, or if multiple requests mutate shared state, this could cause subtle bugs (especially with caching).
+
+Correction: Consider instantiating the service per request or ensuring all state is safely encapsulated and immutable per request.
+*/
+
 const fusion360Service = new Fusion360Service();
 
 /**

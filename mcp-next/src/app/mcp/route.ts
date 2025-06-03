@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { 
   JSONRPCRequest,
+  JSONRPCResponse,
+  JSONRPCError,
   ErrorCode,
   Tool,
+  InitializeResult,
+  ListToolsResult,
+  CallToolResult,
+  ServerResult
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { Fusion360Service } from '@/lib/fusion360-service';
@@ -20,35 +26,11 @@ import {
 const fusion360Service = new Fusion360Service();
 
 /**
- * JSON-RPC error response structure for MCP protocol compliance.
- * Used when requests fail or contain invalid parameters.
- */
-interface JSONRPCErrorResponse {
-  jsonrpc: '2.0';
-  id: string | number | null;
-  error: {
-    code: ErrorCode;
-    message: string;
-  };
-}
-
-/**
- * JSON-RPC success response structure for MCP protocol compliance.
- * Used for successful tool executions and other valid responses.
- */
-interface JSONRPCSuccessResponse {
-  jsonrpc: '2.0';
-  id: string | number | null;
-  result: unknown;
-}
-
-/** Union type for all possible JSON-RPC response formats */
-type JSONRPCResponse = JSONRPCErrorResponse | JSONRPCSuccessResponse;
-
-/**
  * Available MCP tools for the Fusion 360 API documentation server.
  * Each tool provides specific functionality for querying and analyzing
  * the Fusion 360 API documentation.
+ * 
+ * Uses the official MCP SDK Tool type for full protocol compliance.
  */
 const TOOLS: Tool[] = [
   {
@@ -129,17 +111,17 @@ const TOOLS: Tool[] = [
 ];
 
 /**
- * Creates a standardized JSON-RPC error response.
+ * Creates a standardized JSON-RPC error response using MCP SDK types.
  * 
  * @param id - Request ID from the original JSON-RPC request
  * @param code - MCP error code indicating the type of error
  * @param message - Human-readable error description
- * @returns Formatted JSON-RPC error response
+ * @returns Formatted JSON-RPC error response compliant with MCP protocol
  */
-function createErrorResponse(id: string | number | null, code: ErrorCode, message: string): JSONRPCErrorResponse {
+function createErrorResponse(id: string | number | null, code: ErrorCode, message: string): JSONRPCError {
   return {
     jsonrpc: '2.0',
-    id,
+    id: id as string | number,
     error: {
       code,
       message,
@@ -148,16 +130,16 @@ function createErrorResponse(id: string | number | null, code: ErrorCode, messag
 }
 
 /**
- * Creates a standardized JSON-RPC success response.
+ * Creates a standardized JSON-RPC success response using MCP SDK types.
  * 
  * @param id - Request ID from the original JSON-RPC request
  * @param result - The successful result data to return
- * @returns Formatted JSON-RPC success response
+ * @returns Formatted JSON-RPC success response compliant with MCP protocol
  */
-function createSuccessResponse(id: string | number | null, result: unknown): JSONRPCSuccessResponse {
+function createSuccessResponse(id: string | number | null, result: ServerResult): JSONRPCResponse {
   return {
     jsonrpc: '2.0',
-    id,
+    id: id as string | number,
     result,
   };
 }
@@ -166,18 +148,20 @@ function createSuccessResponse(id: string | number | null, result: unknown): JSO
  * Processes a single MCP JSON-RPC request and routes it to the appropriate handler.
  * 
  * This function implements the core MCP protocol handling, including:
- * - Server initialization
- * - Tool listing
- * - Tool execution with parameter validation
+ * - Server initialization with proper MCP types
+ * - Tool listing with ListToolsResult type
+ * - Tool execution with CallToolResult type
  * - Error handling and logging
  * 
  * SECURITY NOTE: All logging is done through secure logger to prevent
  * sensitive data leakage. Request bodies and full error objects are never logged.
  * 
+ * Uses official MCP SDK types for full protocol compliance and better type checking.
+ * 
  * @param request - The JSON-RPC request object to process
  * @returns Promise resolving to a JSON-RPC response
  */
-async function handleMcpRequest(request: JSONRPCRequest): Promise<JSONRPCResponse> {
+async function handleMcpRequest(request: JSONRPCRequest): Promise<JSONRPCResponse | JSONRPCError> {
   const { method, params, id } = request;
   
   // SECURITY: Log request info without exposing sensitive parameters
@@ -188,7 +172,9 @@ async function handleMcpRequest(request: JSONRPCRequest): Promise<JSONRPCRespons
       case 'initialize': {
         // SECURITY: Don't log full params as they might contain sensitive client info
         logInfo('Handling initialize request');
-        const result = {
+        
+        // Use proper MCP InitializeResult type
+        const result: InitializeResult = {
           protocolVersion: '2024-11-05',
           capabilities: {
             tools: {},
@@ -198,16 +184,21 @@ async function handleMcpRequest(request: JSONRPCRequest): Promise<JSONRPCRespons
             version: '0.1.0',
           },
         };
+        
         logOperationSuccess('initialize');
         return createSuccessResponse(id, result);
       }
 
       case 'tools/list': {
         logInfo('Handling tools/list request');
-        logOperationSuccess('tools/list', `${TOOLS.length} tools available`);
-        return createSuccessResponse(id, {
+        
+        // Use proper MCP ListToolsResult type
+        const result: ListToolsResult = {
           tools: TOOLS,
-        });
+        };
+        
+        logOperationSuccess('tools/list', `${TOOLS.length} tools available`);
+        return createSuccessResponse(id, result);
       }
 
       case 'tools/call': {
@@ -221,18 +212,21 @@ async function handleMcpRequest(request: JSONRPCRequest): Promise<JSONRPCRespons
         // SECURITY: Log tool execution without exposing arguments (they might contain sensitive search terms)
         logToolExecution(name);
 
+        // Helper function to create CallToolResult
+        const createToolResult = (content: string): CallToolResult => ({
+          content: [
+            {
+              type: 'text',
+              text: content,
+            },
+          ],
+        });
+
         switch (name) {
           case 'mcp_fusion360_get_toctree_info': {
-            const result = await fusion360Service.getTocTreeInfo();
+            const content = await fusion360Service.getTocTreeInfo();
             logOperationSuccess('get_toctree_info', 'Documentation structure retrieved');
-            return createSuccessResponse(id, {
-              content: [
-                {
-                  type: 'text',
-                  text: result,
-                },
-              ],
-            });
+            return createSuccessResponse(id, createToolResult(content));
           }
 
           case 'mcp_fusion360_search_api_documentation': {
@@ -244,16 +238,9 @@ async function handleMcpRequest(request: JSONRPCRequest): Promise<JSONRPCRespons
             const query = args.query as string;
             const maxResults = (args.max_results as number) || 5;
             
-            const result = await fusion360Service.searchApiDocumentation(query, maxResults);
+            const content = await fusion360Service.searchApiDocumentation(query, maxResults);
             logOperationSuccess('search_api_documentation', 'Search completed');
-            return createSuccessResponse(id, {
-              content: [
-                {
-                  type: 'text',
-                  text: result,
-                },
-              ],
-            });
+            return createSuccessResponse(id, createToolResult(content));
           }
 
           case 'mcp_fusion360_get_api_class_info': {
@@ -263,42 +250,21 @@ async function handleMcpRequest(request: JSONRPCRequest): Promise<JSONRPCRespons
             }
             
             const className = args.class_name as string;
-            const result = await fusion360Service.getApiClassInfo(className);
+            const content = await fusion360Service.getApiClassInfo(className);
             logOperationSuccess('get_api_class_info', 'Class information retrieved');
-            return createSuccessResponse(id, {
-              content: [
-                {
-                  type: 'text',
-                  text: result,
-                },
-              ],
-            });
+            return createSuccessResponse(id, createToolResult(content));
           }
 
           case 'mcp_fusion360_analyze_arrange3d_definition': {
-            const result = await fusion360Service.analyzeArrange3dDefinition();
+            const content = await fusion360Service.analyzeArrange3dDefinition();
             logOperationSuccess('analyze_arrange3d_definition', 'Analysis completed');
-            return createSuccessResponse(id, {
-              content: [
-                {
-                  type: 'text',
-                  text: result,
-                },
-              ],
-            });
+            return createSuccessResponse(id, createToolResult(content));
           }
 
           case 'mcp_fusion360_health_check': {
-            const result = await fusion360Service.healthCheck();
+            const content = await fusion360Service.healthCheck();
             logOperationSuccess('health_check', 'Health check completed');
-            return createSuccessResponse(id, {
-              content: [
-                {
-                  type: 'text',
-                  text: result,
-                },
-              ],
-            });
+            return createSuccessResponse(id, createToolResult(content));
           }
 
           default:
