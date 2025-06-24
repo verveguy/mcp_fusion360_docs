@@ -11,6 +11,6 @@ cd "$(dirname "$0")"
 source .venv/bin/activate
 
 # Start the server
-PORT=8000 python fusion360_docs_server_web.py
+PORT=8000 uv run fusion360_docs_server_web.py
 
 echo "🛑 MCP Server stopped." 

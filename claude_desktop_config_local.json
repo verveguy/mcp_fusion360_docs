@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "fusion360-docs": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "supergateway",
+        "--streamableHttp",
+        "http://127.0.0.1:8000/mcp/"
+      ]
+    }
+  }
+}
